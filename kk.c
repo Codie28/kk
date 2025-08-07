@@ -2,18 +2,17 @@
 #include <ncurses.h>
 #include <stdlib.h>
 #include <stdbool.h>
-
-enum hm {
-  NONE,
-  STATUS,
-  PAGE
-};
+#include <sys/param.h>
 
 typedef struct  {
   char* content;   // Content as null terminated string
-  size_t line;     // current starting line 0 indexed
+  ssize_t line;     // current starting line 0 indexed
   size_t x_offset; // x offset (to the left)
-  enum hm help;    // help mode, 0: none 1: statusline 2: help page
+  enum hm {        // ...
+    NONE,          // ...
+    STATUS,        // ...
+    PAGE           // ...
+  } help;          // help mode, 0: none 1: statusline 2: help page
 } Context;
 
 char* read_entire_stream(FILE* f) {
@@ -22,15 +21,14 @@ char* read_entire_stream(FILE* f) {
   fseek(f, 0, SEEK_SET);
   // duno what happens
   if (size == -1) size = 1024*1024;
-
   char* fcontent = malloc(size);
   fread(fcontent, 1, size, f);
   return fcontent;
 }
 
 void draw_status(Context *ctx, WINDOW *win) {
-  // TODO: get term size
-  move(49, 0);
+  int lastline = getmaxy(win) -1;
+  move(lastline, 0);
   printw("-- kk -- %zu", ctx->line);
   if (ctx->help == 1) {
     printw("  j: down  k: up  q: quit");
@@ -94,6 +92,8 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
+  int stepsize = 10;
+
   while((k = getc(tty))) {
     switch (k) {
       case 'q': 
@@ -107,6 +107,18 @@ int main(int argc, char *argv[]) {
         break;
       case 'k':
         if (c.line != 0) c.line--;
+        c.help = NONE;
+        draw(&c, win);
+        break;
+      case 'u':
+      case 0x15: // ^U
+        c.line = MAX(0, c.line - stepsize);
+        c.help = NONE;
+        draw(&c, win);
+        break;
+      case 'd':
+      case 0x04: // ^D
+        c.line += stepsize;
         c.help = NONE;
         draw(&c, win);
         break;
