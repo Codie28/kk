@@ -27,12 +27,14 @@ char* read_entire_stream(FILE* f) {
 }
 
 void draw_status(Context *ctx, WINDOW *win) {
+  attron(COLOR_PAIR(1));
   int lastline = getmaxy(win) -1;
   move(lastline, 0);
-  printw("-- kk -- %zu", ctx->line);
+  printw("-- kk --");
   if (ctx->help == 1) {
-    printw("  j: down  k: up  q: quit");
+    printw("  j d: down; k u: up; q: quit");
   }
+  attroff(COLOR_PAIR(1));
 }
 
 void draw(Context *ctx, WINDOW *win) {
@@ -50,6 +52,9 @@ void draw(Context *ctx, WINDOW *win) {
     // TODO hacky solution
     if (lcount < ctx->line) continue;
     printw("%c", c);
+  }
+  while (lcount++ < maxline +1) {
+    printw("~ \n\r");
   }
   draw_status(ctx, win);
   refresh();
@@ -82,6 +87,12 @@ int main(int argc, char *argv[]) {
   Context c = {content, 0, 0, NONE};
 
   WINDOW *win = initscr();
+  start_color();
+  use_default_colors();
+
+  // status bar
+  init_pair(1, COLOR_BLACK, COLOR_WHITE);
+
   draw(&c, win);
 
   int k;
@@ -94,6 +105,7 @@ int main(int argc, char *argv[]) {
 
   int stepsize = 10;
 
+  // TODO: line caps
   while((k = getc(tty))) {
     switch (k) {
       case 'q': 
