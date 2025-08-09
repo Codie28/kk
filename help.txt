@@ -1,0 +1,22 @@
+
+                      HELP PAGE OF KK
+
+hehe funy pager
+
+------------------------------------------------------------
+
+                          MOVEMENT
+
+  q  Q  ESC        exit
+  j  e  ^E  CR     move up   one line
+  h  y  ^Y         move down one line
+  u  ^U            move up   half window
+  d  ^D            move down half window
+  z                move up   full window
+  w                move down full window
+
+------------------------------------------------------------
+
+                         SEARCHING
+
+                            todo

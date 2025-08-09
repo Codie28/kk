@@ -9,35 +9,54 @@
 
 typedef struct  {
   char** content;  // Content as array of strings
+  int size;        // size of the content
   ssize_t line;    // current starting line 0 indexed
   size_t x_offset; // x offset (to the left)
   enum hm {        // ...
     NONE,          // ...
     STATUS,        // ...
     PAGE           // ...
-  } help;          // help mode, 0: none 1: statusline 2: help page
+  } help;          // help mode to display
 } Context;
 
-void read_entire_stream(FILE* f, char** c, int s) {
+// returns the size of the array
+int read_entire_stream(FILE* f, char** c, int s) {
   for (int i=0 ; i<s; i++) {
     if ((c[i] = malloc(sizeof(char) * COL)) == NULL) {
         printf("unable to allocate memory \n");
-        return;
+        return -1;
       }
   }
 
   int i = 0;
   while(fgets(c[i], COL, f)) { i++; }
-  c[i++] = NULL;
+  return i;
+}
+
+// loads help.txt file as context
+Context load_help_page() {
+  char *c[ROW];
+  // TODO: fix the path
+  FILE* f = fopen("/home/petal/programming/kk/help.txt", "r");
+
+  int size = read_entire_stream(f, c, ROW);
+
+  Context h = {c, size, 0, 0, PAGE};
+  return h;
 }
 
 void draw_status(Context *ctx, WINDOW *win) {
   attron(COLOR_PAIR(1));
   int lastline = getmaxy(win) -1;
   move(lastline, 0);
-  printw("-- kk --");
-  if (ctx->help == 1) {
-    printw("  j d: down; k u: up; q: quit");
+
+  if (ctx->help == PAGE) {
+    printw("HELP -- press q or ESC to exit help");
+  } else {
+    printw("-- kk -- %d/%zd", ctx->size, ctx->line);
+  }
+  if (ctx->help == STATUS) {
+    printw("  j e: down  k y: up");
   }
   attroff(COLOR_PAIR(1));
 }
@@ -48,20 +67,9 @@ void draw(Context *ctx, WINDOW *win) {
   int i = ctx->line;
   for (; i < COL; i++) {
     if (i >= maxline) break;
-    if (ctx->content[i] == NULL) break;
-    printw("-%s", ctx->content[i]);
+    if (i >= ctx->size) break; printw("-%s", ctx->content[i]);
   }
 
-  // while ((c = ctx->content[i]) != 0) {
-  //   i++;
-  //   if (c == '\n') {
-  //     if (++lcount == ctx->line && ctx->line > 0 ) continue;
-  //   }
-  //   if (lcount > maxline) break;
-  //   // TODO hacky solution
-  //   if (lcount < ctx->line) continue;
-  //   printw("%c", c);
-  // }
   while (i++ < maxline) {
     printw("~ \n\r");
   }
@@ -70,9 +78,84 @@ void draw(Context *ctx, WINDOW *win) {
   return;
 }
 
+void handle_key(WINDOW *win, Context c, Context hp) {
+
+  // TODO: kinda wacky - https://stackoverflow.com/questions/69037629/how-to-read-stdin-then-keyboard-input-in-c
+  FILE *tty = fopen("/dev/tty", "r");
+  if (tty == NULL) {
+    printf("fatal: tty couldnt open\n\r");
+    return;
+  }
+
+  int window = getmaxy(win) - 1;
+  int half_window = window / 2;
+  Context* cp = &c;
+
+  int k;
+  while((k = getc(tty))) {
+    switch (k) {
+      case 'q': 
+      case 'Q': 
+      case 0x1b: // ESC
+        if (cp == &hp) cp = &c;
+        else return;
+      case 'j':
+      case 'e':
+      case 0x05: // ^E
+      case 0x0d: // CR aka \n
+        if (cp->line != c.size - window) c.line++;
+        if (cp == &c) cp->help = NONE;
+        draw(cp, win);
+        break;
+      case 'k':
+      case 'y':
+      case 0x19: // ^Y
+        if (cp->line != 0) c.line--;
+        if (cp == &c) cp->help = NONE;
+        draw(cp, win);
+        break;
+      case 'u':
+      case 0x15: // ^U
+        cp->line = MAX(0, c.line - half_window);
+        if (cp == &c) cp->help = NONE;
+        draw(cp, win);
+        break;
+      case 'd':
+      case 0x04: // ^D
+        // TODO: segfault cuz cp->line get set to -5123912yui987123 on small files
+        cp->line = MIN(c.size - window, c.line + half_window);
+        if (cp == &c) cp->help = NONE;
+        draw(cp, win);
+        break;
+      case 'z':
+        cp->line = MIN(c.size - window, c.line + window);
+        draw(cp, win);
+        break;
+      case 'w':
+        cp->line = MAX(0, c.line - window);
+        draw(cp, win);
+        break;
+      case 'h':
+        if (cp == &c) cp = &hp;
+        else cp = &c;
+        draw(cp, win);
+        break;
+      default:
+        if (cp == &c) cp->help = STATUS;
+        draw_status(cp, win);
+        refresh();
+        break;
+    }
+  };
+
+}
+
 int main(int argc, char *argv[]) {
 
+  Context hp = load_help_page();
+
   char *content[ROW];
+  int size;
 
   if (argc == 2) {
     // file
@@ -81,21 +164,12 @@ int main(int argc, char *argv[]) {
       printf("fatal: counldnt open file");
       return 1;
     }
-    read_entire_stream(f, content, ROW);
+    size = read_entire_stream(f, content, ROW);
     fclose(f);
   } else {
     // stdin
-    read_entire_stream(stdin, content, ROW);
+    size = read_entire_stream(stdin, content, ROW);
   }
-
-  if (content == NULL) {
-    printf("fatal: null content stream\n\r");
-    return 1;
-  }
-
-  // TODO: line caps
-
-  Context c = {content, 0, 0, NONE};
 
   WINDOW *win = initscr();
   start_color();
@@ -104,55 +178,11 @@ int main(int argc, char *argv[]) {
   // status bar
   init_pair(1, COLOR_BLACK, COLOR_WHITE);
 
+  Context c = {content, size, 0, 0, NONE};
+
   draw(&c, win);
-
-  int k;
-  // TODO: kinda wacky - https://stackoverflow.com/questions/69037629/how-to-read-stdin-then-keyboard-input-in-c
-  FILE *tty = fopen("/dev/tty", "r");
-  if (tty == NULL) {
-    printf("fatal: tty couldnt open\n\r");
-    return 1;
-  }
-
-  int stepsize = 10;
-
-  while((k = getc(tty))) {
-    switch (k) {
-      case 'q': 
-        endwin();
-        return 0;
-      case 'j':
-        // TODO get line count
-        c.line++;
-        c.help = NONE;
-        draw(&c, win);
-        break;
-      case 'k':
-        if (c.line != 0) c.line--;
-        c.help = NONE;
-        draw(&c, win);
-        break;
-      case 'u':
-      case 0x15: // ^U
-        c.line = MAX(0, c.line - stepsize);
-        c.help = NONE;
-        draw(&c, win);
-        break;
-      case 'd':
-      case 0x04: // ^D
-        c.line += stepsize;
-        c.help = NONE;
-        draw(&c, win);
-        break;
-      default:
-        c.help = STATUS;
-        draw_status(&c, win);
-        refresh();
-        break;
-    }
-  };
-
-  // ho did we get here
+  handle_key(win, c, hp);
   endwin();
+
   return 1;
 }
