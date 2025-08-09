@@ -4,9 +4,12 @@
 #include <stdbool.h>
 #include <sys/param.h>
 
+#define ROW 1024
+#define COL 1024
+
 typedef struct  {
-  char* content;   // Content as null terminated string
-  ssize_t line;     // current starting line 0 indexed
+  char** content;  // Content as array of strings
+  ssize_t line;    // current starting line 0 indexed
   size_t x_offset; // x offset (to the left)
   enum hm {        // ...
     NONE,          // ...
@@ -15,15 +18,17 @@ typedef struct  {
   } help;          // help mode, 0: none 1: statusline 2: help page
 } Context;
 
-char* read_entire_stream(FILE* f) {
-  fseek(f, 0, SEEK_END); 
-  long size = ftell(f);
-  fseek(f, 0, SEEK_SET);
-  // duno what happens
-  if (size == -1) size = 1024*1024;
-  char* fcontent = malloc(size);
-  fread(fcontent, 1, size, f);
-  return fcontent;
+void read_entire_stream(FILE* f, char** c, int s) {
+  for (int i=0 ; i<s; i++) {
+    if ((c[i] = malloc(sizeof(char) * COL)) == NULL) {
+        printf("unable to allocate memory \n");
+        return;
+      }
+  }
+
+  int i = 0;
+  while(fgets(c[i], COL, f)) { i++; }
+  c[i++] = NULL;
 }
 
 void draw_status(Context *ctx, WINDOW *win) {
@@ -39,21 +44,25 @@ void draw_status(Context *ctx, WINDOW *win) {
 
 void draw(Context *ctx, WINDOW *win) {
   clear();
-  char c = 0;
-  int lcount = 0;
-  int i = 0;
-  int maxline = getmaxy(win) - 2 + ctx->line;
-  while ((c = ctx->content[i]) != 0) {
-    i++;
-    if (c == '\n') {
-      if (++lcount == ctx->line && ctx->line > 0 ) continue;
-    }
-    if (lcount > maxline) break;
-    // TODO hacky solution
-    if (lcount < ctx->line) continue;
-    printw("%c", c);
+  int maxline = getmaxy(win) - 1 + ctx->line;
+  int i = ctx->line;
+  for (; i < COL; i++) {
+    if (i >= maxline) break;
+    if (ctx->content[i] == NULL) break;
+    printw("-%s", ctx->content[i]);
   }
-  while (lcount++ < maxline +1) {
+
+  // while ((c = ctx->content[i]) != 0) {
+  //   i++;
+  //   if (c == '\n') {
+  //     if (++lcount == ctx->line && ctx->line > 0 ) continue;
+  //   }
+  //   if (lcount > maxline) break;
+  //   // TODO hacky solution
+  //   if (lcount < ctx->line) continue;
+  //   printw("%c", c);
+  // }
+  while (i++ < maxline) {
     printw("~ \n\r");
   }
   draw_status(ctx, win);
@@ -63,7 +72,7 @@ void draw(Context *ctx, WINDOW *win) {
 
 int main(int argc, char *argv[]) {
 
-  char* content;
+  char *content[ROW];
 
   if (argc == 2) {
     // file
@@ -72,17 +81,19 @@ int main(int argc, char *argv[]) {
       printf("fatal: counldnt open file");
       return 1;
     }
-    content = read_entire_stream(f);
+    read_entire_stream(f, content, ROW);
     fclose(f);
   } else {
     // stdin
-    content = read_entire_stream(stdin);
+    read_entire_stream(stdin, content, ROW);
   }
 
   if (content == NULL) {
     printf("fatal: null content stream\n\r");
     return 1;
   }
+
+  // TODO: line caps
 
   Context c = {content, 0, 0, NONE};
 
@@ -105,7 +116,6 @@ int main(int argc, char *argv[]) {
 
   int stepsize = 10;
 
-  // TODO: line caps
   while((k = getc(tty))) {
     switch (k) {
       case 'q': 
@@ -146,17 +156,3 @@ int main(int argc, char *argv[]) {
   endwin();
   return 1;
 }
-
-// #include <ncurses.h>
-// #include <stdio.h>
-// int main(int argc, char** argv) {
-//   initscr();
-//   FILE* f = fopen(argv[1], "r");
-//   int c;
-//   while ((c = getc(f)) != EOF) printw("%c", c);
-//   fclose(f);
-//   refresh();
-//   getc(stdin);
-//   endwin();
-//   return 0;
-// }
