@@ -2,13 +2,14 @@
 #include <ncurses.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <string.h>
 #include <sys/param.h>
 
 #define ROW 1024
 #define COL 1024
 
 typedef struct  {
-  char** content;  // Content as array of strings
+  char **content;  // Content as array of strings
   int size;        // size of the content
   ssize_t line;    // current starting line 0 indexed
   size_t x_offset; // x offset (to the left)
@@ -20,7 +21,7 @@ typedef struct  {
 } Context;
 
 // returns the size of the array
-int read_entire_stream(FILE* f, char** c, int s) {
+int read_entire_stream(FILE* f, char **c, int s) {
   for (int i=0 ; i<s; i++) {
     if ((c[i] = malloc(sizeof(char) * COL)) == NULL) {
         printf("unable to allocate memory \n");
@@ -46,9 +47,11 @@ Context load_help_page() {
 }
 
 void draw_status(Context *ctx, WINDOW *win) {
-  attron(COLOR_PAIR(1));
   int lastline = getmaxy(win) -1;
   move(lastline, 0);
+  clrtoeol();
+
+  attron(COLOR_PAIR(1));
 
   if (ctx->help == PAGE) {
     printw("HELP -- press q or ESC to exit help");
@@ -56,7 +59,7 @@ void draw_status(Context *ctx, WINDOW *win) {
     printw("-- kk -- %d/%zd", ctx->size, ctx->line);
   }
   if (ctx->help == STATUS) {
-    printw("  j e: down  k y: up");
+    printw("  h: help  q Q: quit  j e: down  k y: up");
   }
   attroff(COLOR_PAIR(1));
 }
@@ -87,6 +90,7 @@ void handle_key(WINDOW *win, Context c, Context hp) {
     return;
   }
 
+  // TODO: make them update on resize
   int window = getmaxy(win) - 1;
   int half_window = window / 2;
   Context* cp = &c;
@@ -94,11 +98,27 @@ void handle_key(WINDOW *win, Context c, Context hp) {
   int k;
   while((k = getc(tty))) {
     switch (k) {
+
+      /// META IDK
+
       case 'q': 
       case 'Q': 
       case 0x1b: // ESC
-        if (cp == &hp) cp = &c;
+        if (cp == &hp) {
+          cp = &c;
+          draw(cp, win);
+          break;
+        }
         else return;
+      case 'h':
+      case 'H':
+        if (cp == &c) cp = &hp;
+        else cp = &c;
+        draw(cp, win);
+        break;
+
+      /// MOVING
+
       case 'j':
       case 'e':
       case 0x05: // ^E
@@ -122,7 +142,7 @@ void handle_key(WINDOW *win, Context c, Context hp) {
         break;
       case 'd':
       case 0x04: // ^D
-        // TODO: segfault cuz cp->line get set to -5123912yui987123 on small files
+        // TODO: goes offscreen on files smaller than window
         cp->line = MIN(c.size - window, c.line + half_window);
         if (cp == &c) cp->help = NONE;
         draw(cp, win);
@@ -135,24 +155,28 @@ void handle_key(WINDOW *win, Context c, Context hp) {
         cp->line = MAX(0, c.line - window);
         draw(cp, win);
         break;
-      case 'h':
-        if (cp == &c) cp = &hp;
-        else cp = &c;
+
+      /// JUMPING
+
+      case 'g':
+        cp->line = 0;
         draw(cp, win);
         break;
+      case 'G':
+        cp->line = cp->size - window;
+        draw(cp, win);
+        break;
+
       default:
         if (cp == &c) cp->help = STATUS;
         draw_status(cp, win);
         refresh();
         break;
     }
-  };
-
+  }
 }
 
 int main(int argc, char *argv[]) {
-
-  Context hp = load_help_page();
 
   char *content[ROW];
   int size;
@@ -179,6 +203,7 @@ int main(int argc, char *argv[]) {
   init_pair(1, COLOR_BLACK, COLOR_WHITE);
 
   Context c = {content, size, 0, 0, NONE};
+  Context hp = load_help_page();
 
   draw(&c, win);
   handle_key(win, c, hp);
@@ -186,3 +211,4 @@ int main(int argc, char *argv[]) {
 
   return 1;
 }
+// test: asdd

@@ -3,17 +3,28 @@
 
 hehe funy pager
 
+KEYBINDINGS
+
+  q  Q  ESC        quit
+  h  H             help
+
 ------------------------------------------------------------
 
-                          MOVEMENT
+                           MOVING
 
-  q  Q  ESC        exit
   j  e  ^E  CR     move up   one line
   h  y  ^Y         move down one line
   u  ^U            move up   half window
   d  ^D            move down half window
   z                move up   full window
   w                move down full window
+
+------------------------------------------------------------
+
+                          JUMPING
+
+  g                jump to start
+  G                jump to end
 
 ------------------------------------------------------------
 

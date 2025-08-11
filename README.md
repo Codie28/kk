@@ -18,7 +18,8 @@ $ ./kk [file]
 
 ## todo
 
-- [ ] searching
+- [ ] searching -- this might be abit out of louge with me idk
+- [ ] marking (m`reg` to mark line M`reg` to go to line)
 - [ ] more keybindings
 - [ ] color support (see `less -r`)
 
