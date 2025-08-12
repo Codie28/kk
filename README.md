@@ -15,6 +15,7 @@ $ ./kk [file]
 - vertical scrolling
 - vim like keybindings
 - help page
+- 26 marks
 
 ## todo
 
@@ -26,7 +27,6 @@ $ ./kk [file]
 - [ ] searching 
 #this might be abit out of louge with me idk but i do need it if i ever gana use
 #this outside of testing
-- [ ] marking (m`reg` to mark line '`reg` to go to line)
 - [ ] more jump commands
 - [ ] color support (see `less -r`)
 - [ ] make it read the file dynamicly and store it somehow
