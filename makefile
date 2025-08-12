@@ -1,4 +1,4 @@
 # TODO: make a proper makefile
 
-kk: kk.c
-	cc -o kk kk.c -lncurses -ggdb
+kk: kk.c thidparty/flag.h 
+	cc -o kk kk.c flag.h -lncurses -ggdb

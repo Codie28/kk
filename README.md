@@ -10,6 +10,9 @@ $ make kk
 $ ./kk [file]
 ```
 
+this project uses https://github.com/tsoding/flag.h for flag parsing
+you can find the LICENSE for it as `LICENSE-FLAG`
+
 ## features
 
 - vertical scrolling
@@ -32,6 +35,10 @@ $ ./kk [file]
 - [ ] make it read the file dynamicly and store it somehow
     - [ ] maybe search data structers
 - [ ] make a windows version
+
+- [ ] git integration
+    - [ ] detect patch files and display the -/+ on column
+    - [ ] add commands to go between `git logs` or add marks
 
 ## note to self
 

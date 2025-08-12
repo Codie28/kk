@@ -7,6 +7,9 @@
 #include <unistd.h>
 #include <sys/ioctl.h>
 
+#define FLAG_IMPLEMENTATION
+#include "./flag.h"
+
 // 1 2 3 4 5 6 7 8 9 a b c d e 
 // 0 0 0 0 0 s t r i n g 0 g k
 // char key = 's';
@@ -46,6 +49,9 @@
 
 #define REG_START 97 // a
 #define REG_COUNT 25
+
+static bool FLAGcolor;
+static bool FLAGdiff;
 
 typedef struct  {
   char **content;        // Content as array of strings
@@ -91,7 +97,7 @@ void draw_status(Context *ctx, WINDOW *win, bool input) {
   move(lastline, 0);
   clrtoeol();
 
-  attron(COLOR_PAIR(1));
+  attron(COLOR_PAIR(10));
 
   if (ctx->help == PAGE) {
     printw("HELP -- press q or ESC to exit help");
@@ -104,8 +110,30 @@ void draw_status(Context *ctx, WINDOW *win, bool input) {
   if (ctx->help == STATUS) {
     printw("  h: help  q Q: quit  j e: down  k y: up");
   }
+  attroff(COLOR_PAIR(10));
+}
+
+void print_with_ansi(char *str) {
+  char *p = str;
+  while (*p) {
+    if (*p == '\033' && *(p + 1) == '[') {
+      p += 2;
+      const char *start = p;
+      while (*p && *(p + 1) != 'm') p++;
+      // TODO: this loop doesnt terminate when it cant find m
+      int color_code = strtol(start, &p, 10);
+      if (color_code >= 30 && color_code <= 37) {
+        attron(COLOR_PAIR(color_code));
+      }
+    } else {
+      printw("%c", *p);
+    }
+    p++;
+  }
+
   attroff(COLOR_PAIR(1));
 }
+
 
 void draw(Context *ctx, WINDOW *win) {
   clear();
@@ -113,15 +141,38 @@ void draw(Context *ctx, WINDOW *win) {
   int i = ctx->line;
   for (; i < COL; i++) {
     if (i >= maxline) break;
-    // marks
+    if (i >= ctx->size) break; 
+
     char column = '-';
+
+    // color codes
+    char f = ctx->content[i][5];
+    // printw("f:%c!", f);
+
+    // marks
     for (int m = 0 ; m < REG_COUNT; m++) {
       if (i == ctx->marks[m]) {
         column = (char) m + REG_START - 32;
         break;
       }
     }
-    if (i >= ctx->size) break; printw("%c%s", column, ctx->content[i]);
+
+    // maybe complicate it alot more and make only one printw("%c", column) line
+    if (FLAGdiff ) {
+      if (!(f == '-' || f == '+' || f == '@')) {
+        if (column != '-') printw("%c", column);
+        else printw("#");
+      }
+    } else {
+      printw("%c", column);
+    }
+
+
+    if (FLAGcolor) {
+      print_with_ansi(ctx->content[i]);
+    } else {
+      printw("%s", ctx->content[i]);
+    }
   }
 
   while (i++ < maxline) {
@@ -266,14 +317,42 @@ void handle_key(WINDOW *win, Context c, Context hp) {
   }
 }
 
+void usage(FILE *stream) {
+  fprintf(stream, "Usage: ./kk [OPTIONS] [--] [FILE]\n");
+  fprintf(stream, "OPTIONS:\n");
+  flag_print_options(stream);
+}
+
 int main(int argc, char **argv) {
+
+    bool *Fhelp = flag_bool("h", false, "Print help and exit");
+    bool *Fcolor = flag_bool("r", false, "Enable color support");
+    bool *Fdiff = flag_bool("d", false, "Enable diff mode, only for 'git diff'");
+    bool *Fdo_paging_for_small_files = flag_bool("s", false, "Do paging even for small inputs");
+
+    if (!flag_parse(argc, argv)) {
+        usage(stderr);
+        flag_print_error(stderr);
+        exit(1);
+    }
+
+    FLAGcolor = *Fcolor;
+    FLAGdiff = *Fdiff;
+
+    if (*Fhelp) {
+        usage(stdout);
+        exit(0);
+    }
+
+    int rest_argc = flag_rest_argc();
+    char **rest_argv = flag_rest_argv();
 
   char *content[ROW];
   int size;
 
-  if (argc == 2) {
+  if (rest_argc >= 1 && strcmp(rest_argv[0], "-") != 0) {
     // file
-    FILE *f = fopen(argv[1], "r");
+    FILE *f = fopen(rest_argv[0], "r");
     if (f == NULL) {
       printf("fatal: counldnt open file");
       return 1;
@@ -285,23 +364,37 @@ int main(int argc, char **argv) {
     size = read_entire_stream(stdin, content, ROW);
   }
 
-  struct winsize w;
+  // why negation???
+  if (!*Fdo_paging_for_small_files) {
+    struct winsize w;
 
-  ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+    ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
 
-  if (size < w.ws_row) {
-    for (int i; i < size; i++) {
-      printf("%s", content[i]);
+    if (size < w.ws_row) {
+      for (int i; i < size; i++) {
+        printf("%s", content[i]);
+      }
+      return 0;
     }
-    return 0;
   }
 
   WINDOW *win = initscr();
   start_color();
   use_default_colors();
 
+  // Define color pairs for ansi
+  init_pair(31, COLOR_RED, -1);
+  init_pair(32, COLOR_GREEN, -1);
+  init_pair(33, COLOR_YELLOW, -1);
+  init_pair(34, COLOR_BLUE, -1);
+  init_pair(35, COLOR_MAGENTA, -1);
+  init_pair(36, COLOR_CYAN, -1);
+  init_pair(37, COLOR_WHITE, -1);
+
   // status bar
-  init_pair(1, COLOR_BLACK, COLOR_WHITE);
+  init_pair(10, COLOR_BLACK, COLOR_WHITE);
+
+
 
   Context c = {content, size, 0, 0, NONE};
   Context hp = load_help_page();
