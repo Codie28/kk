@@ -4,6 +4,8 @@
 #include <stdbool.h>
 #include <string.h>
 #include <sys/param.h>
+#include <unistd.h>
+#include <sys/ioctl.h>
 
 // 1 2 3 4 5 6 7 8 9 a b c d e 
 // 0 0 0 0 0 s t r i n g 0 g k
@@ -264,7 +266,7 @@ void handle_key(WINDOW *win, Context c, Context hp) {
   }
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char **argv) {
 
   char *content[ROW];
   int size;
@@ -281,6 +283,17 @@ int main(int argc, char *argv[]) {
   } else {
     // stdin
     size = read_entire_stream(stdin, content, ROW);
+  }
+
+  struct winsize w;
+
+  ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+
+  if (size < w.ws_row) {
+    for (int i; i < size; i++) {
+      printf("%s", content[i]);
+    }
+    return 0;
   }
 
   WINDOW *win = initscr();
