@@ -28,6 +28,14 @@ KEYBINDINGS
 
 ------------------------------------------------------------
 
+                          MARKING
+
+  m<letter>        mark the top    line
+  M<letter>        mark the bottom line
+  '<letter>        go to previously marked line
+
+------------------------------------------------------------
+
                          SEARCHING
 
                             todo

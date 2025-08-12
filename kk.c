@@ -5,19 +5,57 @@
 #include <string.h>
 #include <sys/param.h>
 
+// 1 2 3 4 5 6 7 8 9 a b c d e 
+// 0 0 0 0 0 s t r i n g 0 g k
+// char key = 's';
+// char *line = 6;
+// while(line[i] != 0)
+// print(line[i])
+// i++
+//
+// 1 2 3 4 5 6 7 8 9 a b c d e f
+// 2 5 9 0 o n e 0 s e c o n d 0
+// char **content = 2;
+// void change(char **string) {
+//   string[0] = 't';
+// }
+// change(&content[1]) -> change(9)
+// 1 2 3 4 5 6 7 8 9 a b c d e f
+// 2 5 9 0 o n e 0 t e c o n d 0
+//
+// maybe possibl;y proly not working asm hello world programm
+// __asm__(
+//     hello: db "hello, world"
+//     mov [hello], rax
+//
+//     print:
+//     xor rbx, rbx
+//     loop:
+//     mov ral, 0x2h
+//     int 12
+//     inc rbx
+//     mov rax, [rax + rbx]
+//     mov rax, rcx
+//     jnz loop
+// )
+
 #define ROW 1024
 #define COL 1024
 
+#define REG_START 97 // a
+#define REG_COUNT 25
+
 typedef struct  {
-  char **content;  // Content as array of strings
-  int size;        // size of the content
-  ssize_t line;    // current starting line 0 indexed
-  size_t x_offset; // x offset (to the left)
-  enum hm {        // ...
-    NONE,          // ...
-    STATUS,        // ...
-    PAGE           // ...
-  } help;          // help mode to display
+  char **content;        // Content as array of strings
+  int size;              // size of the content
+  ssize_t line;          // current starting line 0 indexed
+  size_t x_offset;       // x offset (to the left)
+  enum hm {              // ...
+    NONE,                // ...
+    STATUS,              // ...
+    PAGE                 // ...
+  } help;                // help mode to display
+  int marks[REG_COUNT];  // *dict* of marks (indexes are lc letters)
 } Context;
 
 // returns the size of the array
@@ -46,7 +84,7 @@ Context load_help_page() {
   return h;
 }
 
-void draw_status(Context *ctx, WINDOW *win) {
+void draw_status(Context *ctx, WINDOW *win, bool input) {
   int lastline = getmaxy(win) -1;
   move(lastline, 0);
   clrtoeol();
@@ -57,6 +95,9 @@ void draw_status(Context *ctx, WINDOW *win) {
     printw("HELP -- press q or ESC to exit help");
   } else {
     printw("-- kk -- %d/%zd", ctx->size, ctx->line);
+  }
+  if (input) {
+    printw(" ...");
   }
   if (ctx->help == STATUS) {
     printw("  h: help  q Q: quit  j e: down  k y: up");
@@ -70,15 +111,41 @@ void draw(Context *ctx, WINDOW *win) {
   int i = ctx->line;
   for (; i < COL; i++) {
     if (i >= maxline) break;
-    if (i >= ctx->size) break; printw("-%s", ctx->content[i]);
+    // marks
+    char column = '-';
+    for (int m = 0 ; m < REG_COUNT; m++) {
+      if (i == ctx->marks[m]) {
+        column = (char) m + REG_START - 32;
+        break;
+      }
+    }
+    if (i >= ctx->size) break; printw("%c%s", column, ctx->content[i]);
   }
 
   while (i++ < maxline) {
     printw("~ \n\r");
   }
-  draw_status(ctx, win);
+  draw_status(ctx, win, false);
   refresh();
   return;
+}
+
+void set_mark(Context *ctx, char c, int line) {
+  ctx->marks[(int) c - REG_START] = line;
+}
+
+// only realy used for marks
+char await_input(Context *ctx, WINDOW *win, FILE *tty, char d) {
+  draw_status(ctx, win, true);
+  refresh();
+  char m = getc(tty);
+  if (m == 0x1b /* ESC */) {
+    return d;
+  }
+  if (m < 97 || m > 122) {
+    return d;
+  }
+  return m;
 }
 
 void handle_key(WINDOW *win, Context c, Context hp) {
@@ -95,7 +162,8 @@ void handle_key(WINDOW *win, Context c, Context hp) {
   int half_window = window / 2;
   Context* cp = &c;
 
-  int k;
+  char k;
+  char m;
   while((k = getc(tty))) {
     switch (k) {
 
@@ -167,9 +235,29 @@ void handle_key(WINDOW *win, Context c, Context hp) {
         draw(cp, win);
         break;
 
+      /// MARKING
+
+      case 'm':
+        m = await_input(cp, win, tty, 'a');
+        set_mark(cp, m, cp->line);
+        draw(cp, win);
+        break;
+      case 'M':
+        m = await_input(cp, win, tty, 'a');
+        set_mark(cp, m, MIN(cp->size, cp->line + window - 1));
+        draw(cp, win);
+        break;
+
+      // goto mark
+      case '\'':
+        m = await_input(cp, win, tty, 'a');
+        cp->line = cp->marks[m - REG_START];
+        draw(cp, win);
+        break;
+
       default:
         if (cp == &c) cp->help = STATUS;
-        draw_status(cp, win);
+        draw_status(cp, win, false);
         refresh();
         break;
     }
@@ -211,4 +299,3 @@ int main(int argc, char *argv[]) {
 
   return 1;
 }
-// test: asdd
