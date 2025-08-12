@@ -19,6 +19,9 @@ you can find the LICENSE for it as `LICENSE-FLAG`
 - vim like keybindings
 - help page
 - 26 marks
+- color mode "-r" (parses basic ANSI)
+- diff mode "-d" for `git diff`
+
 
 ## todo
 
@@ -31,13 +34,13 @@ you can find the LICENSE for it as `LICENSE-FLAG`
 #this might be abit out of louge with me idk but i do need it if i ever gana use
 #this outside of testing
 - [ ] more jump commands
-- [ ] color support (see `less -r`)
 - [ ] make it read the file dynamicly and store it somehow
     - [ ] maybe search data structers
 - [ ] make a windows version
 
-- [ ] git integration
-    - [ ] detect patch files and display the -/+ on column
+- [/] git integration
+    - [/] detect patch files and display the -/+ on column
+    - [ ] add marks for `git diff` files (lines with @@)
     - [ ] add commands to go between `git logs` or add marks
 
 ## note to self
