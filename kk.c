@@ -52,6 +52,8 @@
 
 static bool FLAGcolor;
 static bool FLAGdiff;
+static bool FLAGlog;
+static bool FLAGnum;
 
 typedef struct  {
   char **content;        // Content as array of strings
@@ -113,6 +115,31 @@ void draw_status(Context *ctx, WINDOW *win, bool input) {
   attroff(COLOR_PAIR(10));
 }
 
+const char* strip_ansi(const char *str) {
+  size_t len = strlen(str);
+  char *result = malloc(len + 1);
+  if (!result) {
+    return NULL;
+  }
+
+  char *ptr = result;
+  const char *p = str;
+
+  while (*p) {
+    if (*p == '\033' && *(p + 1) == '[') {
+      while (*p && *p != 'm') p++;
+      if (*p == 'm') p++;
+    } else {
+      *ptr++ = *p;
+      p++;
+    }
+  }
+
+  *ptr = '\0';
+
+  return result;
+}
+
 void print_with_ansi(char *str) {
   char *p = str;
   while (*p) {
@@ -143,22 +170,21 @@ void draw(Context *ctx, WINDOW *win) {
     if (i >= maxline) break;
     if (i >= ctx->size) break; 
 
+    if (FLAGnum) printw("%d", i);
+
     char column = '-';
 
-    // color codes
-    char f = ctx->content[i][5];
-    // printw("f:%c!", f);
+    char f = strip_ansi(ctx->content[i])[0];
 
     // marks
     for (int m = 0 ; m < REG_COUNT; m++) {
-      if (i == ctx->marks[m]) {
+      if (i + 1 == ctx->marks[m]) {
         column = (char) m + REG_START - 32;
         break;
       }
     }
 
-    // maybe complicate it alot more and make only one printw("%c", column) line
-    if (FLAGdiff ) {
+    if (FLAGdiff) {
       if (!(f == '-' || f == '+' || f == '@')) {
         if (column != '-') printw("%c", column);
         else printw("#");
@@ -184,7 +210,7 @@ void draw(Context *ctx, WINDOW *win) {
 }
 
 void set_mark(Context *ctx, char c, int line) {
-  ctx->marks[(int) c - REG_START] = line;
+  ctx->marks[(int) c - REG_START] = line + 1;
 }
 
 // only realy used for marks
@@ -300,12 +326,58 @@ void handle_key(WINDOW *win, Context c, Context hp) {
         set_mark(cp, m, MIN(cp->size, cp->line + window - 1));
         draw(cp, win);
         break;
-
       // goto mark
       case '\'':
         m = await_input(cp, win, tty, 'a');
-        cp->line = cp->marks[m - REG_START];
+        cp->line = cp->marks[m - REG_START] - 1;
         draw(cp, win);
+        break;
+      case '"':
+        m = await_input(cp, win, tty, 'a');
+        cp->line = cp->marks[m - REG_START] - window;
+        draw(cp, win);
+        break;
+
+      /// GIT STUFF
+      case 'p':
+        for (int i = cp->line + 1; i < cp->size; i++) {
+          // TODO: strip ansi
+          if (strncmp(strip_ansi(cp->content[i]), "@@", 2) == 0) {
+            cp->line = i;
+            draw(cp, win);
+            break;
+          }
+        }
+        break;
+      case 'P':
+        for (int i = cp->line - 1; i > 0; i--) {
+          // TODO: strip ansi
+          if (strncmp(strip_ansi(cp->content[i]), "@@", 2) == 0) {
+            cp->line = i;
+            draw(cp, win);
+            break;
+          }
+        }
+        break;
+      case 'l':
+        for (int i = cp->line + 1; i < cp->size; i++) {
+          // TODO: strip ansi
+          if (strncmp(strip_ansi(cp->content[i]), "commit", 6) == 0) {
+            cp->line = i;
+            draw(cp, win);
+            break;
+          }
+        }
+        break;
+      case 'L':
+        for (int i = cp->line - 1; i > 0; i--) {
+          // TODO: strip ansi
+          if (strncmp(strip_ansi(cp->content[i]), "commit", 6) == 0) {
+            cp->line = i;
+            draw(cp, win);
+            break;
+          }
+        }
         break;
 
       default:
@@ -328,6 +400,7 @@ int main(int argc, char **argv) {
     bool *Fhelp = flag_bool("h", false, "Print help and exit");
     bool *Fcolor = flag_bool("r", false, "Enable color support");
     bool *Fdiff = flag_bool("d", false, "Enable diff mode, only for 'git diff'");
+    bool *Fnum  = flag_bool("l", false, "Enable line numbers");
     bool *Fdo_paging_for_small_files = flag_bool("s", false, "Do paging even for small inputs");
 
     if (!flag_parse(argc, argv)) {
@@ -338,6 +411,7 @@ int main(int argc, char **argv) {
 
     FLAGcolor = *Fcolor;
     FLAGdiff = *Fdiff;
+    FLAGnum = *Fnum;
 
     if (*Fhelp) {
         usage(stdout);
@@ -370,7 +444,8 @@ int main(int argc, char **argv) {
 
     ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
 
-    if (size < w.ws_row) {
+    // add a bit less space for promt and stuff
+    if (size < w.ws_row - 5) {
       for (int i; i < size; i++) {
         printf("%s", content[i]);
       }
@@ -393,8 +468,6 @@ int main(int argc, char **argv) {
 
   // status bar
   init_pair(10, COLOR_BLACK, COLOR_WHITE);
-
-
 
   Context c = {content, size, 0, 0, NONE};
   Context hp = load_help_page();

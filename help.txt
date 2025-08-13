@@ -32,7 +32,17 @@ KEYBINDINGS
 
   m<letter>        mark the top    line
   M<letter>        mark the bottom line
-  '<letter>        go to previously marked line
+  '<letter>        go to marked line at the top
+  "<letter>        go to marked line at the bottom
+
+------------------------------------------------------------
+
+                            GIT
+
+  l                go to next commit          `git log`
+  L                go to prev commit          `git log`
+  p                go to next patch           `git diff`
+  P                go to prev patch           `git diff`
 
 ------------------------------------------------------------
 

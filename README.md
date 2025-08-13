@@ -11,7 +11,6 @@ $ ./kk [file]
 ```
 
 this project uses https://github.com/tsoding/flag.h for flag parsing
-you can find the LICENSE for it as `LICENSE-FLAG`
 
 ## features
 
@@ -22,14 +21,8 @@ you can find the LICENSE for it as `LICENSE-FLAG`
 - color mode "-r" (parses basic ANSI)
 - diff mode "-d" for `git diff`
 
-
 ## todo
 
-- [ ] !! better key handling
-#accumilate a string of imputs and switch on that
-#make so some cases can select weather to clear or not the input string
-#so that `m` and `ma` can both do stuff
-#but idk if C's switch case is that strong
 - [ ] searching 
 #this might be abit out of louge with me idk but i do need it if i ever gana use
 #this outside of testing
