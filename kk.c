@@ -243,7 +243,7 @@ void handle_key(WINDOW *win, Context c, Context hp) {
 
   char k;
   char m;
-  while((k = getc(tty))) {
+  while((k = getc(tty))){
     switch (k) {
 
       /// META IDK
@@ -289,7 +289,7 @@ void handle_key(WINDOW *win, Context c, Context hp) {
         break;
       case 'd':
       case 0x04: // ^D
-        // TODO: goes offscreen on files smaller than window
+        // TODO: goes offscreedakjashd on files smaller than window
         cp->line = MIN(c.size - window, c.line + half_window);
         if (cp == &c) cp->help = NONE;
         draw(cp, win);
@@ -350,7 +350,7 @@ void handle_key(WINDOW *win, Context c, Context hp) {
         }
         break;
       case 'P':
-        for (int i = cp->line - 1; i > 0; i--) {
+        for (int i = cp->line - 1; i > -1; i--) {
           // TODO: strip ansi
           if (strncmp(strip_ansi(cp->content[i]), "@@", 2) == 0) {
             cp->line = i;
@@ -370,7 +370,7 @@ void handle_key(WINDOW *win, Context c, Context hp) {
         }
         break;
       case 'L':
-        for (int i = cp->line - 1; i > 0; i--) {
+        for (int i = cp->line - 1; i > -1; i--) {
           // TODO: strip ansi
           if (strncmp(strip_ansi(cp->content[i]), "commit", 6) == 0) {
             cp->line = i;
