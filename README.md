@@ -19,7 +19,10 @@ this project uses https://github.com/tsoding/flag.h for flag parsing
 - help page
 - 26 marks
 - color mode "-r" (parses basic ANSI)
-- diff mode "-d" for `git diff`
+- git integration
+    - detect patch files and display the -/+ on column
+    - commands to go between `git diff` patches
+    - commands to go between `git logs` commits
 
 ## todo
 
@@ -30,11 +33,7 @@ this project uses https://github.com/tsoding/flag.h for flag parsing
 - [ ] make it read the file dynamicly and store it somehow
     - [ ] maybe search data structers
 - [ ] make a windows version
-
-- [/] git integration
-    - [/] detect patch files and display the -/+ on column
-    - [ ] add marks for `git diff` files (lines with @@)
-    - [ ] add commands to go between `git logs` or add marks
+- [ ] hot reloading options
 
 ## note to self
 

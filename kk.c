@@ -47,8 +47,8 @@
 #define ROW 1024
 #define COL 1024
 
-#define REG_START 97 // a
-#define REG_COUNT 25
+#define REG_START 95 // _
+#define REG_COUNT 27
 
 static bool FLAGcolor;
 static bool FLAGdiff;
@@ -82,6 +82,10 @@ int read_entire_stream(FILE* f, char **c, int s) {
   return i;
 }
 
+void set_mark(Context *ctx, char c, int line) {
+  ctx->marks[(int) c - REG_START] = line + 1;
+}
+
 // loads help.txt file as context
 Context load_help_page() {
   char *c[ROW];
@@ -91,12 +95,15 @@ Context load_help_page() {
   int size = read_entire_stream(f, c, ROW);
 
   Context h = {c, size, 0, 0, PAGE};
+  set_mark(&h, '_', size - 1);
+  set_mark(&h, '`', 0);
+  
   return h;
 }
 
 void draw_status(Context *ctx, WINDOW *win, bool input) {
-  int lastline = getmaxy(win) -1;
-  move(lastline, 0);
+  int window = getmaxy(win) - 1;
+  move(window, 0);
   clrtoeol();
 
   attron(COLOR_PAIR(10));
@@ -104,7 +111,7 @@ void draw_status(Context *ctx, WINDOW *win, bool input) {
   if (ctx->help == PAGE) {
     printw("HELP -- press q or ESC to exit help");
   } else {
-    printw("-- kk -- %d/%zd", ctx->size, ctx->line);
+    printw("-- kk -- %d/%zd %d", ctx->size, ctx->line, window);
   }
   if (input) {
     printw(" ...");
@@ -177,7 +184,7 @@ void draw(Context *ctx, WINDOW *win) {
     char f = strip_ansi(ctx->content[i])[0];
 
     // marks
-    for (int m = 0 ; m < REG_COUNT; m++) {
+    for (int m = 2 ; m < REG_COUNT; m++) {
       if (i + 1 == ctx->marks[m]) {
         column = (char) m + REG_START - 32;
         break;
@@ -209,10 +216,6 @@ void draw(Context *ctx, WINDOW *win) {
   return;
 }
 
-void set_mark(Context *ctx, char c, int line) {
-  ctx->marks[(int) c - REG_START] = line + 1;
-}
-
 // only realy used for marks
 char await_input(Context *ctx, WINDOW *win, FILE *tty, char d) {
   draw_status(ctx, win, true);
@@ -221,7 +224,7 @@ char await_input(Context *ctx, WINDOW *win, FILE *tty, char d) {
   if (m == 0x1b /* ESC */) {
     return d;
   }
-  if (m < 97 || m > 122) {
+  if (m < REG_START || m > REG_START + REG_COUNT) {
     return d;
   }
   return m;
@@ -237,13 +240,20 @@ void handle_key(WINDOW *win, Context c, Context hp) {
   }
 
   // TODO: make them update on resize
-  int window = getmaxy(win) - 1;
-  int half_window = window / 2;
-  Context* cp = &c;
+  Context* ctx = &c;
+
 
   char k;
   char m;
   while((k = getc(tty))){
+
+    int window = getmaxy(win) - 1;
+    int half_window = window / 2;
+    int limit = ctx->size;
+    if (ctx->line <= ctx->size - window) {
+      limit -= window;
+    }
+
     switch (k) {
 
       /// META IDK
@@ -251,17 +261,17 @@ void handle_key(WINDOW *win, Context c, Context hp) {
       case 'q': 
       case 'Q': 
       case 0x1b: // ESC
-        if (cp == &hp) {
-          cp = &c;
-          draw(cp, win);
+        if (ctx == &hp) {
+          ctx = &c;
+          draw(ctx, win);
           break;
         }
         else return;
       case 'h':
       case 'H':
-        if (cp == &c) cp = &hp;
-        else cp = &c;
-        draw(cp, win);
+        if (ctx == &c) ctx = &hp;
+        else ctx = &c;
+        draw(ctx, win);
         break;
 
       /// MOVING
@@ -269,120 +279,115 @@ void handle_key(WINDOW *win, Context c, Context hp) {
       case 'j':
       case 'e':
       case 0x05: // ^E
-      case 0x0d: // CR aka \n
-        if (cp->line != c.size - window) c.line++;
-        if (cp == &c) cp->help = NONE;
-        draw(cp, win);
+      case 0x0d: // CR
+        if (ctx->line != ctx->size - window && ctx->line < ctx->size) ctx->line++;
+        if (ctx == &c) ctx->help = NONE;
+        draw(ctx, win);
         break;
       case 'k':
       case 'y':
       case 0x19: // ^Y
-        if (cp->line != 0) c.line--;
-        if (cp == &c) cp->help = NONE;
-        draw(cp, win);
-        break;
-      case 'u':
-      case 0x15: // ^U
-        cp->line = MAX(0, c.line - half_window);
-        if (cp == &c) cp->help = NONE;
-        draw(cp, win);
+        if (ctx->line != 0) ctx->line--;
+        if (ctx == &c) ctx->help = NONE;
+        draw(ctx, win);
         break;
       case 'd':
       case 0x04: // ^D
-        // TODO: goes offscreedakjashd on files smaller than window
-        cp->line = MIN(c.size - window, c.line + half_window);
-        if (cp == &c) cp->help = NONE;
-        draw(cp, win);
+        ctx->line = MIN(limit, ctx->line + half_window);
+        if (ctx == &c) ctx->help = NONE;
+        draw(ctx, win);
+        break;
+      case 'u':
+      case 0x15: // ^U
+        ctx->line = MAX(0, ctx->line - half_window);
+        if (ctx == &c) ctx->help = NONE;
+        draw(ctx, win);
         break;
       case 'z':
-        cp->line = MIN(c.size - window, c.line + window);
-        draw(cp, win);
+        ctx->line = MIN(limit, ctx->line + window);
+        draw(ctx, win);
         break;
       case 'w':
-        cp->line = MAX(0, c.line - window);
-        draw(cp, win);
+        ctx->line = MAX(0, ctx->line - window);
+        draw(ctx, win);
         break;
 
       /// JUMPING
 
       case 'g':
-        cp->line = 0;
-        draw(cp, win);
+        ctx->line = 0;
+        draw(ctx, win);
         break;
       case 'G':
-        cp->line = cp->size - window;
-        draw(cp, win);
+        ctx->line = ctx->size - window;
+        draw(ctx, win);
         break;
 
       /// MARKING
 
       case 'm':
-        m = await_input(cp, win, tty, 'a');
-        set_mark(cp, m, cp->line);
-        draw(cp, win);
+        m = await_input(ctx, win, tty, 'a');
+        set_mark(ctx, m, ctx->line);
+        draw(ctx, win);
         break;
       case 'M':
-        m = await_input(cp, win, tty, 'a');
-        set_mark(cp, m, MIN(cp->size, cp->line + window - 1));
-        draw(cp, win);
+        m = await_input(ctx, win, tty, 'a');
+        set_mark(ctx, m, MIN(ctx->size, ctx->line + window - 1));
+        draw(ctx, win);
         break;
       // goto mark
       case '\'':
-        m = await_input(cp, win, tty, 'a');
-        cp->line = cp->marks[m - REG_START] - 1;
-        draw(cp, win);
+        m = await_input(ctx, win, tty, 'a');
+        ctx->line = MAX(0, ctx->marks[m - REG_START] - 1);
+        draw(ctx, win);
         break;
       case '"':
-        m = await_input(cp, win, tty, 'a');
-        cp->line = cp->marks[m - REG_START] - window;
-        draw(cp, win);
+        m = await_input(ctx, win, tty, 'a');
+        ctx->line = MAX(0, ctx->marks[m - REG_START] - window);
+        draw(ctx, win);
         break;
 
       /// GIT STUFF
       case 'p':
-        for (int i = cp->line + 1; i < cp->size; i++) {
-          // TODO: strip ansi
-          if (strncmp(strip_ansi(cp->content[i]), "@@", 2) == 0) {
-            cp->line = i;
-            draw(cp, win);
+        for (int i = ctx->line + 1; i < ctx->size; i++) {
+          if (strncmp(strip_ansi(ctx->content[i]), "@@", 2) == 0) {
+            ctx->line = i;
+            draw(ctx, win);
             break;
           }
         }
         break;
       case 'P':
-        for (int i = cp->line - 1; i > -1; i--) {
-          // TODO: strip ansi
-          if (strncmp(strip_ansi(cp->content[i]), "@@", 2) == 0) {
-            cp->line = i;
-            draw(cp, win);
+        for (int i = ctx->line - 1; i > -1; i--) {
+          if (strncmp(strip_ansi(ctx->content[i]), "@@", 2) == 0) {
+            ctx->line = i;
+            draw(ctx, win);
             break;
           }
         }
         break;
       case 'l':
-        for (int i = cp->line + 1; i < cp->size; i++) {
-          // TODO: strip ansi
-          if (strncmp(strip_ansi(cp->content[i]), "commit", 6) == 0) {
-            cp->line = i;
-            draw(cp, win);
+        for (int i = ctx->line + 1; i < ctx->size; i++) {
+          if (strncmp(strip_ansi(ctx->content[i]), "commit", 6) == 0) {
+            ctx->line = i;
+            draw(ctx, win);
             break;
           }
         }
         break;
       case 'L':
-        for (int i = cp->line - 1; i > -1; i--) {
-          // TODO: strip ansi
-          if (strncmp(strip_ansi(cp->content[i]), "commit", 6) == 0) {
-            cp->line = i;
-            draw(cp, win);
+        for (int i = ctx->line - 1; i > -1; i--) {
+          if (strncmp(strip_ansi(ctx->content[i]), "commit", 6) == 0) {
+            ctx->line = i;
+            draw(ctx, win);
             break;
           }
         }
         break;
 
       default:
-        if (cp == &c) cp->help = STATUS;
-        draw_status(cp, win, false);
+        if (ctx == &c) ctx->help = STATUS;
+        draw_status(ctx, win, false);
         refresh();
         break;
     }
@@ -396,7 +401,6 @@ void usage(FILE *stream) {
 }
 
 int main(int argc, char **argv) {
-
     bool *Fhelp = flag_bool("h", false, "Print help and exit");
     bool *Fcolor = flag_bool("r", false, "Enable color support");
     bool *Fdiff = flag_bool("d", false, "Enable diff mode, only for 'git diff'");
@@ -470,6 +474,8 @@ int main(int argc, char **argv) {
   init_pair(10, COLOR_BLACK, COLOR_WHITE);
 
   Context c = {content, size, 0, 0, NONE};
+  set_mark(&c, '_', size - 1);
+  set_mark(&c, '`', 0);
   Context hp = load_help_page();
 
   draw(&c, win);

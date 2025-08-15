@@ -35,6 +35,10 @@ KEYBINDINGS
   '<letter>        go to marked line at the top
   "<letter>        go to marked line at the bottom
 
+  NOTE: there are some predefined marks
+     ` start of file 
+     _ end of file
+
 ------------------------------------------------------------
 
                             GIT
